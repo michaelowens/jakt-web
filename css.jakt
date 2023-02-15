@@ -1,0 +1,212 @@
+import dom { Element }
+
+enum SimpleSelector {
+    Universal // *
+    TagName(String) // html
+    Class(String) // .class
+    Id(String) // #id
+
+    public fn matches(this, anon element: Element) -> bool => match this {
+        Universal => true
+        TagName(tag_name) => element.tag_name == tag_name
+        Class(class_) => {
+            let element_class = element.get_attribute("class")
+            if element_class.has_value() {
+                let class_list = element_class!.split(c' ')
+                return class_list.contains(class_)
+            }
+            return false
+        }
+        Id(id) => element.get_attribute("id") == Some(id)
+    }
+}
+
+enum Combinator {
+    None
+    ImmediateChild // >
+}
+
+struct CompoundSelector {
+    combinator: Combinator
+    simple_selectors: [SimpleSelector]
+
+    public fn matches(this, anon element: Element) -> bool {
+        for simple_selector in .simple_selectors {
+            if not simple_selector.matches(element) {
+                return false
+            }
+        }
+        return true
+    }
+}
+
+struct Selector {
+    compound_selectors: [CompoundSelector]
+
+    public fn from_string(anon css: String) throws -> Selector {
+        mut css_parser = CSSSelectorParser::create()
+        return css_parser.from_string(css)
+    }
+
+    public fn matches(this, anon element: Element) -> bool {
+        mut current = element
+
+        for i in (.compound_selectors.size())..0 {
+            let compound_selector = .compound_selectors[i - 1]
+
+            if not compound_selector.matches(current) {
+                return false
+            }
+
+            if compound_selector.combinator is ImmediateChild {
+                if current.parent.has_value() and current.parent! is Element {
+                    current = current.parent! as! Element
+                }
+            }
+        }
+        return true
+    }
+}
+
+class CSSSelectorParser {
+    index: usize=0
+    data: String=""
+
+    public fn create() throws -> CSSSelectorParser {
+        return CSSSelectorParser()
+    }
+
+    public fn from_string(mut this, anon css: String) throws -> Selector {
+        .data = css
+
+        let compound_selectors = .parse()
+        return Selector(compound_selectors)
+    }
+
+    fn parse(mut this) throws -> [CompoundSelector] {
+        mut compound_selectors: [CompoundSelector] = []
+
+        while not .eof() {
+            .skip_whitespace()
+            match .peek() {
+                b'>' => {
+                    .index++
+                    compound_selectors.push(
+                        CompoundSelector(
+                            combinator: Combinator::ImmediateChild,
+                            simple_selectors: .parse_helper()
+                        )
+                    )
+                }
+                else => compound_selectors.push(
+                    CompoundSelector(
+                        combinator: Combinator::None,
+                        simple_selectors: .parse_helper()
+                    )
+                )
+            }
+        }
+
+        return compound_selectors
+    }
+
+    fn parse_helper(mut this) throws -> [SimpleSelector] {
+        mut simple_selectors: [SimpleSelector] = []
+
+        .skip_whitespace()
+        match .peek() {
+            b'*' => {
+                .consume()
+                return [SimpleSelector::Universal]
+            }
+            b'#' => simple_selectors.push(.parse_id())
+            b'.' => simple_selectors.push(.parse_class())
+            else => simple_selectors.push(.parse_tag_name())
+        }
+
+        return simple_selectors
+    }
+
+    fn parse_word(mut this) throws -> String {
+        mut builder = StringBuilder::create()
+
+        .index++
+        loop {
+            let next_char = .peek()
+            if .eof() or next_char == b' ' {
+                break
+            }
+
+            if not .is_valid_word(next_char) {
+                break
+            }
+
+            builder.append(.consume())
+        }
+
+        return builder.to_string()
+    }
+
+    fn parse_id(mut this) throws -> SimpleSelector {
+        return SimpleSelector::Id(.parse_word())
+    }
+
+    fn parse_class(mut this) throws -> SimpleSelector {
+        return SimpleSelector::Class(.parse_word())
+    }
+
+    fn parse_tag_name(mut this) throws -> SimpleSelector {
+        mut simple_selectors: [SimpleSelector] = []
+        mut builder = StringBuilder::create()
+
+        loop {
+            let next_char = .peek()
+            if .eof() or not .is_valid_word(next_char) {
+                break
+            }
+
+            builder.append(.consume())
+        }
+
+        return SimpleSelector::TagName(builder.to_string())
+    }
+
+    fn is_valid_word(this, anon char_: u8) -> bool {
+        return match char_ {
+            b'_' | b'-' => true
+            else => .is_alpha_numerical(char_)
+        }
+    }
+
+    fn is_alpha_numerical(this, anon char_: u8) -> bool {
+        return (
+            char_ >= b'a' and char_ <= b'z'
+        ) or (char_ >= b'A' and char_ <= b'Z') or (char_ >= b'0' and char_ <= b'9')
+    }
+
+    fn eof(this) -> bool {
+        return .index >= .data.length()
+    }
+
+    fn consume(mut this) -> u8 {
+        let char_ = .peek()
+        .index++
+        return char_
+    }
+
+    fn peek(this) -> u8 {
+        if .eof() {
+            return 0
+        }
+        return .data.byte_at(.index)
+    }
+
+    fn skip_whitespace(mut this) {
+        while not .eof() {
+            if .peek() != b' ' {
+                break
+            }
+            .index++
+        }
+    }
+}

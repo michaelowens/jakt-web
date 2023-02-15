@@ -1,0 +1,47 @@
+import dom
+import css
+
+fn test_against_element(css: String, elements: [Element]) throws {
+    let selector = Selector::from_string(css)
+    println("'{}' matches:", css)
+    for element in elements {
+        println("  <{}>: {}", element.tag_name, selector.matches(element))
+    }
+}
+
+fn test() throws -> [String] {
+    return "test string".split(c' ')
+}
+
+fn main() {
+    mut html = Element::create(tag_name: "html")
+    mut head = Element::create(tag_name: "head")
+    html.append_child(head)
+
+    mut title = Element::create(tag_name: "title")
+    head.append_child(title)
+    title.append_child(Text::create("Hello title"))
+
+    mut body = Element::create(tag_name: "body")
+    html.append_child(body)
+
+    mut h1 = Element::create(tag_name: "h1")
+    body.append_child(h1)
+    h1.append_child(Text::create("Welcome :)"))
+
+    mut div = Element::create(tag_name: "div")
+    body.append_child(div)
+    div.set_attribute("id", "app")
+    div.set_attribute("class", "flex mt-4")
+
+    dump_tree(html)
+
+    println("")
+
+    let elements = [body, h1, div]
+    test_against_element(css: "*", elements)
+    test_against_element(css: "h1", elements)
+    test_against_element(css: "body > h1", elements)
+    test_against_element(css: "div#app", elements)
+    test_against_element(css: ".flex", elements)
+}

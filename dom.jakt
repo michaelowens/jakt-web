@@ -1,0 +1,67 @@
+class Node {
+    public parent: weak Node?=None
+
+    public virtual fn node_name(this) => "Node"
+}
+
+class Text: Node {
+    public data: String
+
+    public override fn node_name(this) => "Text"
+
+    public fn create(anon data: String) throws -> Text {
+        return Text(data)
+    }
+}
+
+class ParentNode: Node {
+    public children: [Node]
+
+    public override fn node_name(this) => "ParentNode"
+
+    public fn append_child(mut this, anon mut child: Node) throws {
+        .children.push(child)
+        child.parent = this
+    }
+}
+
+class Element: ParentNode {
+    public tag_name: String
+    public attributes: [String: String]
+
+    public override fn node_name(this) -> String => .tag_name
+
+    public fn create(tag_name: String) throws -> Element {
+        return Element(children: [], tag_name, attributes: [:])
+    }
+
+    public fn set_attribute(mut this, anon name: String, anon value: String) throws {
+        .attributes.set(name, value)
+    }
+
+    public fn get_attribute(this, anon name: String) -> String? {
+        return .attributes.get(name)
+    }
+}
+
+fn dump_tree(anon node: Node, indent: usize = 0) {
+    print("{}", String::repeated(character: c' ', count: indent * 2))
+
+    if node is Text {
+        println("{}", (node as! Text).data)
+    } else if node is Element {
+        print("<{}", node.node_name())
+        for (key, value) in (node as! Element).attributes {
+            print(" {}=\"{}\"", key, value)
+        }
+        println(">")
+    } else {
+        println("<{}>", node.node_name())
+    }
+
+    if node is ParentNode {
+        for child in (node as! ParentNode).children {
+            dump_tree(child, indent: indent + 1)
+        }
+    }
+}
